@@ -171,15 +171,20 @@ st.caption("AI-enabled shipment exception triage: classify severity + recommend 
 
 with st.sidebar:
     st.header("Model / Settings")
+
+    # Shows whether Streamlit can see your token (does not reveal the token)
     token_present = bool(hf_token and str(hf_token).strip())
     st.write("HF_TOKEN detected:", "✅ Yes" if token_present else "❌ No")
-    
-model_name = st.text_input(
+
+    # Model selector
+    model_name = st.text_input(
         "Hugging Face model (text-generation)",
-        value="HuggingFaceH4/zephyr-7b-beta"
+        value="google/flan-t5-base"
     )
+
     st.write("Tip: if this model errors or is slow, switch to a smaller instruction model on HF.")
     st.divider()
+
     st.header("Examples")
     example = st.selectbox(
         "Load an example",
@@ -193,19 +198,6 @@ model_name = st.text_input(
         ],
     )
 
-default_text = ""
-if example == "Port congestion: rolled booking":
-    default_text = "Carrier advises booking was rolled due to port congestion; new ETA unknown pending vessel schedule."
-elif example == "Customs hold: paperwork missing":
-    default_text = "Shipment held in customs due to missing commercial invoice. Broker requesting documents; clearance may take several days."
-elif example == "Weather delay: snow, 1-day slip":
-    default_text = "Pickup delayed due to snow. Driver rescheduled for tomorrow; ETA slips by 1 day."
-elif example == "Delivered: POD confirmed":
-    default_text = "Delivered today 10:14. POD uploaded. No issues reported."
-elif example == "Strike: terminal shutdown":
-    default_text = "Port labor strike announced; terminal operations suspended until further notice."
-
-col1, col2 = st.columns(2)
 
 with col1:
     exception_text = st.text_area("Exception note / carrier update", value=default_text, height=220)
