@@ -49,24 +49,35 @@ def fallback_classifier(text: str) -> Dict[str, Any]:
 # Hugging Face Inference call
 # -----------------------------
 def hf_generate(model: str, prompt: str, hf_token: str, timeout_s: int = 45) -> str:
-    """
-    Uses Hugging Face InferenceClient with a universal text_generation call.
-    """
-    client = InferenceClient(model=model, token=hf_token, timeout=timeout_s)
+    # IMPORTANT: router endpoint must include /hf-inference/
+    url = f"https://router.huggingface.co/hf-inference/models/{model}"
+    headers = {"Authorization": f"Bearer {hf_token}"}
+    payload = {
+        "inputs": prompt,
+        "parameters": {
+            "max_new_tokens": 220,
+            "temperature": 0.2,
+            "return_full_text": False,
+        },
+    }
 
-    response = client.text_generation(
-        prompt,
-        max_new_tokens=220,
-        temperature=0.2,
-        return_full_text=False,
-    )
+    r = requests.post(url, headers=headers, json=payload, timeout=timeout_s)
 
-    # Some versions return a string directly, some return an object
-    if isinstance(response, str):
-        return response
+    # Helpful error details (shows HF response body)
+    if r.status_code >= 400:
+        raise RuntimeError(f"HF error {r.status_code}: {r.text}")
 
-    return str(response)
+    data = r.json()
 
+    # Most common: list[{"generated_text": "..."}]
+    if isinstance(data, list) and len(data) > 0 and isinstance(data[0], dict) and "generated_text" in data[0]:
+        return data[0]["generated_text"]
+
+    # Sometimes: {"generated_text": "..."}
+    if isinstance(data, dict) and "generated_text" in data:
+        return data["generated_text"]
+
+    return json.dumps(data)
 
 
 def extract_json(text: str) -> Optional[Dict[str, Any]]:
