@@ -50,7 +50,7 @@ def fallback_classifier(text: str) -> Dict[str, Any]:
 # -----------------------------
 def hf_generate(model: str, prompt: str, hf_token: str, timeout_s: int = 45) -> str:
     # IMPORTANT: router endpoint must include /hf-inference/
-    url = f"https://router.huggingface.co/hf-inference/models/{model}"
+    url = f"https://api-inference.huggingface.co/models/{model}"
     headers = {"Authorization": f"Bearer {hf_token}"}
     payload = {
         "inputs": prompt,
