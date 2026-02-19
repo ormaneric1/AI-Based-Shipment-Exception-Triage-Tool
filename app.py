@@ -6,6 +6,7 @@ from typing import Dict, Any, Optional
 
 import requests
 import streamlit as st
+from huggingface_hub import InferenceClient
 
 
 # -----------------------------
@@ -48,31 +49,26 @@ def fallback_classifier(text: str) -> Dict[str, Any]:
 # Hugging Face Inference call
 # -----------------------------
 def hf_generate(model: str, prompt: str, hf_token: str, timeout_s: int = 45) -> str:
-    url = f"https://router.huggingface.co/models/{model}"
-    headers = {"Authorization": f"Bearer {hf_token}"}
-    payload = {
-        "inputs": prompt,
-        "parameters": {
-            "max_new_tokens": 220,
-            "temperature": 0.2,
-            "return_full_text": False
-        }
-    }
+    """
+    Uses Hugging Face's official InferenceClient which automatically routes correctly.
+    """
+    client = InferenceClient(model=model, token=hf_token, timeout=timeout_s)
 
-    r = requests.post(url, headers=headers, json=payload, timeout=timeout_s)
-    if r.status_code >= 400:
-        raise RuntimeError(f"HF error {r.status_code}: {r.text}")
+    # flan-t5 is text2text-generation (seq2seq), not classic text-generation
+    if "flan-t5" in model.lower():
+        return client.text2text_generation(
+            prompt,
+            max_new_tokens=220,
+            temperature=0.2,
+        )
 
-    data = r.json()
-
-    # HF can return different shapes depending on backend
-    if isinstance(data, list) and len(data) > 0 and "generated_text" in data[0]:
-        return data[0]["generated_text"]
-    if isinstance(data, dict) and "generated_text" in data:
-        return data["generated_text"]
-
-    # If it's a weird response, just stringify it
-    return json.dumps(data)
+    # default: text-generation
+    return client.text_generation(
+        prompt,
+        max_new_tokens=220,
+        temperature=0.2,
+        return_full_text=False,
+    )
 
 
 def extract_json(text: str) -> Optional[Dict[str, Any]]:
