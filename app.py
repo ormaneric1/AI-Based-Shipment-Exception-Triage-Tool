@@ -6,7 +6,10 @@ from typing import Dict, Any, Optional
 
 import requests
 import streamlit as st
-from huggingface_hub import InferenceClient
+
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+
 
 
 # -----------------------------
@@ -46,38 +49,59 @@ def fallback_classifier(text: str) -> Dict[str, Any]:
 
 
 # -----------------------------
-# Hugging Face Inference call
+# Local lightweight ML classifier (no external APIs)
 # -----------------------------
-def hf_generate(model: str, prompt: str, hf_token: str, timeout_s: int = 45) -> str:
-    # IMPORTANT: router endpoint must include /hf-inference/
-    url = f"https://api-inference.huggingface.co/models/{model}"
-    headers = {"Authorization": f"Bearer {hf_token}"}
-    payload = {
-        "inputs": prompt,
-        "parameters": {
-            "max_new_tokens": 220,
-            "temperature": 0.2,
-            "return_full_text": False,
-        },
+TRAIN_DATA = [
+    ("Delivered today. POD confirmed. No issues.", "On-time"),
+    ("Arrived on schedule. Signed proof of delivery uploaded.", "On-time"),
+    ("On track; ETA unchanged.", "On-time"),
+
+    ("Pickup rescheduled for tomorrow due to weather.", "Minor delay"),
+    ("Late pickup. ETA slips by 1 day.", "Minor delay"),
+    ("Appointment moved to next day; slight delay expected.", "Minor delay"),
+
+    ("Customs hold due to missing documents; clearance may take several days.", "Major delay"),
+    ("Port congestion and rolled booking; new ETA pending vessel schedule.", "Major delay"),
+    ("Mechanical breakdown; freight delayed 4 days.", "Major delay"),
+
+    ("Port strike; terminal shutdown until further notice.", "Disruption likely"),
+    ("Shipment missing; investigation opened.", "Disruption likely"),
+    ("Facility fire reported; operations suspended.", "Disruption likely"),
+]
+
+@st.cache_resource
+def get_local_model():
+    X = [t for t, y in TRAIN_DATA]
+    y = [y for t, y in TRAIN_DATA]
+    vec = TfidfVectorizer(ngram_range=(1,2), min_df=1)
+    Xv = vec.fit_transform(X)
+    clf = LogisticRegression(max_iter=1000)
+    clf.fit(Xv, y)
+    return vec, clf
+
+def local_predict(text: str) -> Dict[str, Any]:
+    vec, clf = get_local_model()
+    Xv = vec.transform([text])
+    proba = clf.predict_proba(Xv)[0]
+    classes = clf.classes_
+    best_i = int(proba.argmax())
+    label = str(classes[best_i])
+    confidence = float(proba[best_i])
+
+    # Map label to action
+    action_map = {
+        "On-time": "monitor",
+        "Minor delay": "monitor",
+        "Major delay": "expedite",
+        "Disruption likely": "escalate",
     }
-
-    r = requests.post(url, headers=headers, json=payload, timeout=timeout_s)
-
-    # Helpful error details (shows HF response body)
-    if r.status_code >= 400:
-        raise RuntimeError(f"HF error {r.status_code}: {r.text}")
-
-    data = r.json()
-
-    # Most common: list[{"generated_text": "..."}]
-    if isinstance(data, list) and len(data) > 0 and isinstance(data[0], dict) and "generated_text" in data[0]:
-        return data[0]["generated_text"]
-
-    # Sometimes: {"generated_text": "..."}
-    if isinstance(data, dict) and "generated_text" in data:
-        return data["generated_text"]
-
-    return json.dumps(data)
+    return {
+        "label": label,
+        "confidence": confidence,
+        "recommended_action": action_map.get(label, "monitor"),
+        "rationale": "Predicted by a lightweight text classifier trained on example exception notes.",
+        "assumptions": ["Training set is small and illustrative; expand with real historical notes for production."]
+    }
 
 
 def extract_json(text: str) -> Optional[Dict[str, Any]]:
@@ -173,27 +197,11 @@ Exception note:
 st.set_page_config(page_title="Shipment Delay Classification Tool", layout="wide")
 st.title("Shipment Delay Classification Tool")
 st.caption("AI-enabled shipment exception triage: classify severity + recommend next action (free-tier stack).")
-# --- Load Hugging Face token (Streamlit secrets first, env var second) ---
-hf_token = ""
-try:
-    hf_token = st.secrets["HF_TOKEN"]
-except Exception:
-    hf_token = os.getenv("HF_TOKEN", "")
+
 
 with st.sidebar:
     st.header("Model / Settings")
-
-    # Shows whether Streamlit can see your token (does not reveal token)
-    token_present = bool(hf_token and str(hf_token).strip())
-    st.write("HF_TOKEN detected:", "✅ Yes" if token_present else "❌ No")
-
-    # Model selector
-    model_name = st.text_input(
-        "Hugging Face model (text-generation)",
-        value="google/flan-t5-base"
-    )
-
-    st.write("Tip: if this model errors or is slow, switch to a smaller instruction model on HF.")
+    st.write("Classifier: Local TF-IDF + Logistic Regression (no external API)")
     st.divider()
 
     st.header("Examples")
@@ -208,6 +216,7 @@ with st.sidebar:
             "Strike: terminal shutdown"
         ],
     )
+
 
 # Set default text based on example
 default_text = ""
@@ -236,56 +245,34 @@ with col2:
 
 classify = st.button("Classify delay")
 
-
-
-
-
 if classify:
     if not exception_text.strip():
         st.error("Please paste an exception note.")
         st.stop()
 
-    # Try AI classification if token exists
-    if hf_token:
-        prompt = build_prompt(exception_text, mode, lane, promised_date)
-        try:
-            raw = hf_generate(model_name, prompt, hf_token)
-            parsed = extract_json(raw)
+    try:
+        result = local_predict(exception_text)
 
-            # If JSON is bad, retry once with a stricter instruction
-            if parsed is None:
-                strict_prompt = prompt + "\n\nIMPORTANT: Output must be ONLY JSON. No prose. No markdown."
-                raw2 = hf_generate(model_name, strict_prompt, hf_token)
-                parsed = extract_json(raw2)
+        st.success("AI classification complete.")
+        st.subheader("Result")
+        st.write(f"**Label:** {result['label']}")
+        st.write(f"**Confidence:** {result['confidence']:.2f}")
+        st.write(f"**Recommended action:** {result['recommended_action']}")
+        st.write(f"**Rationale:** {result['rationale']}")
+        if result["assumptions"]:
+            st.write("**Assumptions:**")
+            st.write(result["assumptions"])
 
-            if parsed is None:
-                raise ValueError("Model did not return valid JSON.")
-
-            result = normalize_result(parsed)
-
-            st.success("AI classification complete.")
-            st.subheader("Result")
-            st.write(f"**Label:** {result['label']}")
-            st.write(f"**Confidence:** {result['confidence']:.2f}")
-            st.write(f"**Recommended action:** {result['recommended_action']}")
-            st.write(f"**Rationale:** {result['rationale']}")
-            if result["assumptions"]:
-                st.write("**Assumptions:**")
-                st.write(result["assumptions"])
-
-            st.caption("Note: Model output is validated and normalized. If the model fails, tool falls back to rules.")
-
-        except Exception as e:
-            st.warning(f"AI call failed, using fallback rules. Details: {repr(e)}")
-            fb = fallback_classifier(exception_text)
-            st.subheader("Fallback Result (Rules-Based)")
-            st.write(f"**Label:** {fb['label']}")
-            st.write(f"**Confidence:** {fb['confidence']:.2f}")
-            st.write(f"**Recommended action:** {fb['recommended_action']}")
-    else:
-        st.warning("No HF_TOKEN found. Add it to Streamlit secrets for AI mode. Using fallback rules for now.")
+        st.caption("Note: Local model trained on example cases. Expand training data for production.")
+    except Exception as e:
+        st.warning(f"Model failed, using fallback rules. Details: {repr(e)}")
         fb = fallback_classifier(exception_text)
         st.subheader("Fallback Result (Rules-Based)")
         st.write(f"**Label:** {fb['label']}")
         st.write(f"**Confidence:** {fb['confidence']:.2f}")
         st.write(f"**Recommended action:** {fb['recommended_action']}")
+
+
+
+
+
