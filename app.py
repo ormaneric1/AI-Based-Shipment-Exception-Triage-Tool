@@ -171,8 +171,8 @@ st.caption("AI-enabled shipment exception triage: classify severity + recommend 
 
 with st.sidebar:
     st.header("Model / Settings")
-    # Pick a model that is commonly available for inference.
-    # If you change this, use a small instruction model that supports text-generation.
+        token_present = bool(hf_token and str(hf_token).strip())
+    st.write("HF_TOKEN detected:", "✅ Yes" if token_present else "❌ No")
     model_name = st.text_input(
         "Hugging Face model (text-generation)",
         value="HuggingFaceH4/zephyr-7b-beta"
