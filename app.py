@@ -168,11 +168,17 @@ Exception note:
 st.set_page_config(page_title="Shipment Delay Classification Tool", layout="wide")
 st.title("Shipment Delay Classification Tool")
 st.caption("AI-enabled shipment exception triage: classify severity + recommend next action (free-tier stack).")
+# --- Load Hugging Face token (Streamlit secrets first, env var second) ---
+hf_token = ""
+try:
+    hf_token = st.secrets["HF_TOKEN"]
+except Exception:
+    hf_token = os.getenv("HF_TOKEN", "")
 
 with st.sidebar:
     st.header("Model / Settings")
 
-    # Shows whether Streamlit can see your token (does not reveal the token)
+    # Shows whether Streamlit can see your token (does not reveal token)
     token_present = bool(hf_token and str(hf_token).strip())
     st.write("HF_TOKEN detected:", "✅ Yes" if token_present else "❌ No")
 
@@ -198,10 +204,26 @@ with st.sidebar:
         ],
     )
 
+# Set default text based on example
+default_text = ""
+if example == "Port congestion: rolled booking":
+    default_text = "Carrier advises booking was rolled due to port congestion; new ETA unknown pending vessel schedule."
+elif example == "Customs hold: paperwork missing":
+    default_text = "Shipment held in customs due to missing commercial invoice. Broker requesting documents; clearance may take several days."
+elif example == "Weather delay: snow, 1-day slip":
+    default_text = "Pickup delayed due to snow. Driver rescheduled for tomorrow; ETA slips by 1 day."
+elif example == "Delivered: POD confirmed":
+    default_text = "Delivered today 10:14. POD uploaded. No issues reported."
+elif example == "Strike: terminal shutdown":
+    default_text = "Port labor strike announced; terminal operations suspended until further notice."
+
+# Main page inputs
+col1, col2 = st.columns(2)
 
 with col1:
     exception_text = st.text_area("Exception note / carrier update", value=default_text, height=220)
     mode = st.selectbox("Mode", ["Ocean", "Air", "Truck", "Rail", "Parcel"])
+
 with col2:
     lane = st.text_input("Lane (e.g., CN→LAX, NJ→TX)", value="CN→LAX")
     promised_date = st.date_input("Promised delivery date", value=date.today()).isoformat()
@@ -209,12 +231,8 @@ with col2:
 
 classify = st.button("Classify delay")
 
-# Streamlit Community Cloud stores secrets in st.secrets (not os.getenv by default)
-hf_token = ""
-try:
-    hf_token = st.secrets["HF_TOKEN"]
-except Exception:
-    hf_token = os.getenv("HF_TOKEN", "")
+
+
 
 
 if classify:
