@@ -1,3 +1,4 @@
 streamlit
 requests
 huggingface_hub
+scikit-learn==1.5.2
