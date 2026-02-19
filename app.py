@@ -48,7 +48,7 @@ def fallback_classifier(text: str) -> Dict[str, Any]:
 # Hugging Face Inference call
 # -----------------------------
 def hf_generate(model: str, prompt: str, hf_token: str, timeout_s: int = 45) -> str:
-    url = f"https://api-inference.huggingface.co/models/{model}"
+    url = f"https://router.huggingface.co/hf-inference/models/{model}"
     headers = {"Authorization": f"Bearer {hf_token}"}
     payload = {
         "inputs": prompt,
