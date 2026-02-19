@@ -265,7 +265,7 @@ if classify:
             st.caption("Note: Model output is validated and normalized. If the model fails, tool falls back to rules.")
 
         except Exception as e:
-            st.warning(f"AI call failed, using fallback rules. Details: {e}")
+            st.warning(f"AI call failed, using fallback rules. Details: {repr(e)}")
             fb = fallback_classifier(exception_text)
             st.subheader("Fallback Result (Rules-Based)")
             st.write(f"**Label:** {fb['label']}")
