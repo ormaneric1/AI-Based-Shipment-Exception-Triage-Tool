@@ -50,25 +50,23 @@ def fallback_classifier(text: str) -> Dict[str, Any]:
 # -----------------------------
 def hf_generate(model: str, prompt: str, hf_token: str, timeout_s: int = 45) -> str:
     """
-    Uses Hugging Face's official InferenceClient which automatically routes correctly.
+    Uses Hugging Face InferenceClient with a universal text_generation call.
     """
     client = InferenceClient(model=model, token=hf_token, timeout=timeout_s)
 
-    # flan-t5 is text2text-generation (seq2seq), not classic text-generation
-    if "flan-t5" in model.lower():
-        return client.text2text_generation(
-            prompt,
-            max_new_tokens=220,
-            temperature=0.2,
-        )
-
-    # default: text-generation
-    return client.text_generation(
+    response = client.text_generation(
         prompt,
         max_new_tokens=220,
         temperature=0.2,
         return_full_text=False,
     )
+
+    # Some versions return a string directly, some return an object
+    if isinstance(response, str):
+        return response
+
+    return str(response)
+
 
 
 def extract_json(text: str) -> Optional[Dict[str, Any]]:
