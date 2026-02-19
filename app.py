@@ -216,7 +216,13 @@ with col2:
 
 classify = st.button("Classify delay")
 
-hf_token = os.getenv("HF_TOKEN", "")
+# Streamlit Community Cloud stores secrets in st.secrets (not os.getenv by default)
+hf_token = ""
+try:
+    hf_token = st.secrets["HF_TOKEN"]
+except Exception:
+    hf_token = os.getenv("HF_TOKEN", "")
+
 
 if classify:
     if not exception_text.strip():
