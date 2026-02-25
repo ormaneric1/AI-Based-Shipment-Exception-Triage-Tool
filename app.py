@@ -269,7 +269,7 @@ if classify:
         st.write(f"**Label:** {result['label']}")
         st.write(f"**Confidence:** {result['confidence']:.2f}")
         st.write("**Probability breakdown:**")
-st.json(result["probabilities"])
+        st.json(result["probabilities"])
         st.write(f"**Recommended action:** {result['recommended_action']}")
         st.write(f"**Rationale:** {result['rationale']}")
         if result["assumptions"]:
