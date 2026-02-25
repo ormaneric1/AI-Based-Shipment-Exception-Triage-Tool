@@ -1,4 +1,7 @@
 import json
+import numpy as np
+import pandas as pd
+import io
 import os
 import re
 from datetime import date
@@ -77,16 +80,22 @@ def get_local_model():
     Xv = vec.fit_transform(X)
     clf = LogisticRegression(max_iter=1000)
     clf.fit(Xv, y)
-    return vec, clf
+    feature_names = vec.get_feature_names_out()
+return vec, clf, feature_names
 
 def local_predict(text: str) -> Dict[str, Any]:
-    vec, clf = get_local_model()
-    Xv = vec.transform([text])
-    proba = clf.predict_proba(Xv)[0]
-    classes = clf.classes_
-    best_i = int(proba.argmax())
+    vec, clf, feature_names = get_local_model()
+
+    Xv = vec.transform([text])              # shape (1, n_features)
+    probs = clf.predict_proba(Xv)[0]        # array of probabilities
+    classes = clf.classes_                  # class labels
+
+    best_i = int(np.argmax(probs))
     label = str(classes[best_i])
-    confidence = float(proba[best_i])
+    confidence = float(probs[best_i])
+
+    # Build probability breakdown
+    prob_breakdown = {str(classes[i]): float(probs[i]) for i in range(len(classes))}
 
     # Map label to action
     action_map = {
@@ -95,9 +104,11 @@ def local_predict(text: str) -> Dict[str, Any]:
         "Major delay": "expedite",
         "Disruption likely": "escalate",
     }
+
     return {
         "label": label,
         "confidence": confidence,
+        "probabilities": prob_breakdown,
         "recommended_action": action_map.get(label, "monitor"),
         "rationale": "Predicted by a lightweight text classifier trained on example exception notes.",
         "assumptions": ["Training set is small and illustrative; expand with real historical notes for production."]
@@ -257,6 +268,8 @@ if classify:
         st.subheader("Result")
         st.write(f"**Label:** {result['label']}")
         st.write(f"**Confidence:** {result['confidence']:.2f}")
+        st.write("**Probability breakdown:**")
+st.json(result["probabilities"])
         st.write(f"**Recommended action:** {result['recommended_action']}")
         st.write(f"**Rationale:** {result['rationale']}")
         if result["assumptions"]:
