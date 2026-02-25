@@ -312,56 +312,56 @@ if classify:
 
         st.caption("Note: Local model trained on example cases. Expand training data for production.")
         st.divider()
-        st.header("Batch classify (CSV upload)")
+st.header("Batch classify (CSV upload)")
 
-        st.write("Upload a CSV with a column named **exception_note** (required). Optional columns: lane, mode, promised_date.")
+st.write("Upload a CSV with a column named **exception_note** (required). Optional columns: lane, mode, promised_date.")
 
-        uploaded_file = st.file_uploader("Upload CSV", type=["csv"])
+uploaded_file = st.file_uploader("Upload CSV", type=["csv"])
 
-        if uploaded_file is not None:
-            try:
-                df = pd.read_csv(uploaded_file)
+if uploaded_file is not None:
+    try:
+        df = pd.read_csv(uploaded_file)
 
-                if "exception_note" not in df.columns:
-                    st.error("CSV must contain a column named: exception_note")
-                    st.stop()
+        if "exception_note" not in df.columns:
+            st.error("CSV must contain a column named: exception_note")
+            st.stop()
 
-                # Fill missing optional columns if not provided
-                if "lane" not in df.columns:
-                    df["lane"] = ""
-                if "mode" not in df.columns:
-                    df["mode"] = ""
-                if "promised_date" not in df.columns:
-                    df["promised_date"] = ""
+        # Fill missing optional columns if not provided
+        if "lane" not in df.columns:
+            df["lane"] = ""
+        if "mode" not in df.columns:
+            df["mode"] = ""
+        if "promised_date" not in df.columns:
+            df["promised_date"] = ""
 
-                results = []
-                for _, row in df.iterrows():
-                    note = str(row["exception_note"])
-                    pred = local_predict(note)
+        results = []
+        for _, row in df.iterrows():
+            note = str(row["exception_note"])
+            pred = local_predict(note)
 
-                    results.append({
-                        "exception_note": note,
-                        "label": pred["label"],
-                        "confidence": round(pred["confidence"], 4),
-                        "recommended_action": pred["recommended_action"],
-                        "prob_on_time": round(pred["probabilities"].get("On-time", 0.0), 4),
-                        "prob_minor": round(pred["probabilities"].get("Minor delay", 0.0), 4),
-                        "prob_major": round(pred["probabilities"].get("Major delay", 0.0), 4),
-                        "prob_disruption": round(pred["probabilities"].get("Disruption likely", 0.0), 4),
-                    })
+            results.append({
+                "exception_note": note,
+                "label": pred["label"],
+                "confidence": round(pred["confidence"], 4),
+                "recommended_action": pred["recommended_action"],
+                "prob_on_time": round(pred["probabilities"].get("On-time", 0.0), 4),
+                "prob_minor": round(pred["probabilities"].get("Minor delay", 0.0), 4),
+                "prob_major": round(pred["probabilities"].get("Major delay", 0.0), 4),
+                "prob_disruption": round(pred["probabilities"].get("Disruption likely", 0.0), 4),
+            })
 
-                out_df = pd.DataFrame(results)
+        out_df = pd.DataFrame(results)
 
-                st.subheader("Batch results preview")
-                st.dataframe(out_df, use_container_width=True)
+        st.subheader("Batch results preview")
+        st.dataframe(out_df, use_container_width=True)
 
-                csv_bytes = out_df.to_csv(index=False).encode("utf-8")
-                st.download_button(
-                    "Download results as CSV",
-                    data=csv_bytes,
-                    file_name="shipment_delay_batch_results.csv",
-                    mime="text/csv"
-                )
+        csv_bytes = out_df.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            "Download results as CSV",
+            data=csv_bytes,
+            file_name="shipment_delay_batch_results.csv",
+            mime="text/csv"
+        )
 
     except Exception as e:
         st.error(f"Batch processing failed: {repr(e)}")
