@@ -364,10 +364,52 @@ if uploaded_file is not None:
 
         out_df = pd.DataFrame(results)
 
-        st.subheader("Batch results preview")
-        st.dataframe(out_df, use_container_width=True)
+        # ----- Batch summary KPIs -----
+        st.subheader("Batch summary")
 
-        csv_bytes = out_df.to_csv(index=False).encode("utf-8")
+        total = len(out_df)
+        pct_major = (out_df["label"].eq("Major delay").mean() * 100) if total else 0
+        pct_disrupt = (out_df["label"].eq("Disruption likely").mean() * 100) if total else 0
+        pct_lowconf = (out_df["confidence"].lt(0.50).mean() * 100) if total else 0
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Rows", total)
+        c2.metric("% Major delay", f"{pct_major:.1f}%")
+        c3.metric("% Disruption likely", f"{pct_disrupt:.1f}%")
+        c4.metric("% Low confidence (<0.50)", f"{pct_lowconf:.1f}%")
+
+        st.divider()
+
+        # ----- Priority scoring -----
+        severity_weight = {
+            "On-time": 0,
+            "Minor delay": 1,
+            "Major delay": 2,
+            "Disruption likely": 3
+        }
+
+        out_df["severity_score"] = out_df["label"].map(severity_weight).fillna(0).astype(int)
+        out_df["low_conf_flag"] = (out_df["confidence"] < 0.50).astype(int)
+
+        # higher = more urgent
+        out_df["priority_score"] = (out_df["severity_score"] * 10) + (out_df["low_conf_flag"] * 3) + (1 - out_df["confidence"])
+
+        st.write("Triage filters")
+        show_only_urgent = st.checkbox("Show only expedite/escalate rows", value=False)
+        show_only_lowconf = st.checkbox("Show only low-confidence rows (<0.50)", value=False)
+
+        filtered = out_df.copy()
+        if show_only_urgent:
+            filtered = filtered[filtered["recommended_action"].isin(["expedite", "escalate"])]
+        if show_only_lowconf:
+            filtered = filtered[filtered["confidence"] < 0.50]
+
+        filtered = filtered.sort_values(["severity_score", "confidence"], ascending=[False, True])
+
+        st.subheader("Batch results preview")
+        st.dataframe(filtered, use_container_width=True)
+
+        csv_bytes = filtered.to_csv(index=False).encode("utf-8")
         st.download_button(
             "Download results as CSV",
             data=csv_bytes,
@@ -376,4 +418,4 @@ if uploaded_file is not None:
         )
 
     except Exception as e:
-            st.error(f"Batch processing failed: {repr(e)}")
+        st.error(f"Batch processing failed: {repr(e)}")
