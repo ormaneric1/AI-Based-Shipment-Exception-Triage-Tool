@@ -201,7 +201,13 @@ Exception note:
 {exception_text}
 """.strip()
 
-
+def show_confidence_indicator(conf: float):
+    if conf >= 0.75:
+        st.success(f"Confidence: {conf:.2f} (High)")
+    elif conf >= 0.50:
+        st.warning(f"Confidence: {conf:.2f} (Medium)")
+    else:
+        st.error(f"Confidence: {conf:.2f} (Low)")
 # -----------------------------
 # Streamlit UI
 # -----------------------------
@@ -267,7 +273,7 @@ if classify:
         st.success("AI classification complete.")
         st.subheader("Result")
         st.write(f"**Label:** {result['label']}")
-        st.write(f"**Confidence:** {result['confidence']:.2f}")
+       show_confidence_indicator(result["confidence"])
         st.write("**Probability breakdown:**")
         st.json(result["probabilities"])
         st.write(f"**Recommended action:** {result['recommended_action']}")
