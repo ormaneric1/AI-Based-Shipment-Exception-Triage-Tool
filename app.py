@@ -82,6 +82,7 @@ def get_local_model():
     clf.fit(Xv, y)
     feature_names = vec.get_feature_names_out()
     return vec, clf, feature_names
+    
 def top_keywords_for_prediction(vec, clf, feature_names, Xv_row, predicted_label: str, top_k: int = 10):
     """
     Returns the top positive contributing keywords/phrases for the predicted class.
@@ -310,7 +311,7 @@ if classify:
             st.write("**Assumptions:**")
             st.write(result["assumptions"])
 
-                st.caption("Note: Local model trained on example cases. Expand training data for production.")
+        st.caption("Note: Local model trained on example cases. Expand training data for production.")
 
     except Exception as e:
         st.warning(f"Model failed, using fallback rules. Details: {repr(e)}")
@@ -375,4 +376,4 @@ if uploaded_file is not None:
         )
 
     except Exception as e:
-        st.error(f"Batch processing failed: {repr(e)}")
+            st.error(f"Batch processing failed: {repr(e)}")
