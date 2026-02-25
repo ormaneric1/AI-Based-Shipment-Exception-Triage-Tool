@@ -273,7 +273,7 @@ if classify:
         st.success("AI classification complete.")
         st.subheader("Result")
         st.write(f"**Label:** {result['label']}")
-       show_confidence_indicator(result["confidence"])
+        show_confidence_indicator(result["confidence"])
         st.write("**Probability breakdown:**")
         st.json(result["probabilities"])
         st.write(f"**Recommended action:** {result['recommended_action']}")
