@@ -81,7 +81,7 @@ def get_local_model():
     clf = LogisticRegression(max_iter=1000)
     clf.fit(Xv, y)
     feature_names = vec.get_feature_names_out()
-return vec, clf, feature_names
+    return vec, clf, feature_names
 
 def local_predict(text: str) -> Dict[str, Any]:
     vec, clf, feature_names = get_local_model()
