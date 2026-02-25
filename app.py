@@ -310,10 +310,21 @@ if classify:
             st.write("**Assumptions:**")
             st.write(result["assumptions"])
 
-        st.caption("Note: Local model trained on example cases. Expand training data for production.")
-        st.divider()
-st.header("Batch classify (CSV upload)")
+                st.caption("Note: Local model trained on example cases. Expand training data for production.")
 
+    except Exception as e:
+        st.warning(f"Model failed, using fallback rules. Details: {repr(e)}")
+        fb = fallback_classifier(exception_text)
+        st.subheader("Fallback Result (Rules-Based)")
+        st.write(f"**Label:** {fb['label']}")
+        st.write(f"**Confidence:** {fb['confidence']:.2f}")
+        st.write(f"**Recommended action:** {fb['recommended_action']}")
+
+# -----------------------------
+# Batch classify (CSV upload)
+# -----------------------------
+st.divider()
+st.header("Batch classify (CSV upload)")
 st.write("Upload a CSV with a column named **exception_note** (required). Optional columns: lane, mode, promised_date.")
 
 uploaded_file = st.file_uploader("Upload CSV", type=["csv"])
@@ -365,15 +376,3 @@ if uploaded_file is not None:
 
     except Exception as e:
         st.error(f"Batch processing failed: {repr(e)}")
-    except Exception as e:
-        st.warning(f"Model failed, using fallback rules. Details: {repr(e)}")
-        fb = fallback_classifier(exception_text)
-        st.subheader("Fallback Result (Rules-Based)")
-        st.write(f"**Label:** {fb['label']}")
-        st.write(f"**Confidence:** {fb['confidence']:.2f}")
-        st.write(f"**Recommended action:** {fb['recommended_action']}")
-
-
-
-
-
