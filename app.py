@@ -82,7 +82,26 @@ def get_local_model():
     clf.fit(Xv, y)
     feature_names = vec.get_feature_names_out()
     return vec, clf, feature_names
+def top_keywords_for_prediction(vec, clf, feature_names, Xv_row, predicted_label: str, top_k: int = 10):
+    """
+    Returns the top positive contributing keywords/phrases for the predicted class.
+    Works for TF-IDF + Logistic Regression.
+    """
+    # For multi-class LogisticRegression, coef_ is shape (n_classes, n_features)
+    class_index = list(clf.classes_).index(predicted_label)
+    coefs = clf.coef_[class_index]  # shape (n_features,)
 
+    # Xv_row is a sparse row vector; convert to COO to iterate non-zeros
+    row = Xv_row.tocoo()
+    contributions = []
+
+    for j, v in zip(row.col, row.data):
+        score = v * coefs[j]  # tfidf_value * weight
+        if score > 0:
+            contributions.append((feature_names[j], float(score)))
+
+    contributions.sort(key=lambda x: x[1], reverse=True)
+    return contributions[:top_k]
 def local_predict(text: str) -> Dict[str, Any]:
     vec, clf, feature_names = get_local_model()
 
@@ -96,7 +115,7 @@ def local_predict(text: str) -> Dict[str, Any]:
 
     # Build probability breakdown
     prob_breakdown = {str(classes[i]): float(probs[i]) for i in range(len(classes))}
-
+    top_terms = top_keywords_for_prediction(vec, clf, feature_names, Xv, label, top_k=10)
     # Map label to action
     action_map = {
         "On-time": "monitor",
@@ -109,6 +128,7 @@ def local_predict(text: str) -> Dict[str, Any]:
         "label": label,
         "confidence": confidence,
         "probabilities": prob_breakdown,
+        "top_keywords": top_terms,
         "recommended_action": action_map.get(label, "monitor"),
         "rationale": "Predicted by a lightweight text classifier trained on example exception notes.",
         "assumptions": ["Training set is small and illustrative; expand with real historical notes for production."]
@@ -274,10 +294,18 @@ if classify:
         st.subheader("Result")
         st.write(f"**Label:** {result['label']}")
         show_confidence_indicator(result["confidence"])
+        
         st.write("**Probability breakdown:**")
         st.json(result["probabilities"])
+        
+        st.write("**Why this classification? (Top keywords)**")
+        if result.get("top_keywords"):
+            st.table(pd.DataFrame(result["top_keywords"], columns=["keyword/phrase", "impact_score"]))
+        else:
+            st.write("No strong keyword signals found in this note.")
         st.write(f"**Recommended action:** {result['recommended_action']}")
         st.write(f"**Rationale:** {result['rationale']}")
+        
         if result["assumptions"]:
             st.write("**Assumptions:**")
             st.write(result["assumptions"])
